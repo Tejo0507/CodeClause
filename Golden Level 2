@@ -1,0 +1,102 @@
+# Required Libraries
+import cv2
+import numpy as np
+from tensorflow.keras.models import load_model
+from tkinter import Tk, Label, Button, filedialog
+from PIL import Image, ImageTk
+
+# Load Pre-trained Model
+try:
+    model = load_model('gesture_model.h5')  # Replace with your model file
+    print("Model loaded successfully!")
+except:
+    print("Error: Pre-trained model not found. Train the model and save as 'gesture_model.h5'.")
+    exit()
+
+# Gesture Mapping (Adjust according to your dataset)
+gesture_mapping = {
+    0: "Thumbs Up",
+    1: "Thumbs Down",
+    2: "Stop",
+    3: "Okay",
+    4: "Peace"
+}
+
+# Preprocess Image for Model Input
+def preprocess_image(image_path):
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    img = cv2.resize(img, (64, 64))
+    img = img / 255.0
+    img = img.reshape(1, 64, 64, 1)
+    return img
+
+# Real-Time Gesture Recognition Using Webcam
+def start_camera():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Error: Camera not accessible.")
+        return
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Preprocess for Prediction
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        resized_frame = cv2.resize(gray_frame, (64, 64)) / 255.0
+        reshaped_frame = resized_frame.reshape(1, 64, 64, 1)
+
+        # Predict Gesture
+        prediction = model.predict(reshaped_frame)
+        gesture = gesture_mapping[np.argmax(prediction)]
+
+        # Display Gesture
+        cv2.putText(frame, f"Gesture: {gesture}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imshow("Gesture Recognition", frame)
+
+        # Exit on 'q' Key
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+# GUI with Tkinter
+class GestureApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Gesture Recognition System")
+
+        self.label = Label(root, text="Upload an image or start camera feed for gesture recognition.")
+        self.label.pack()
+
+        self.upload_button = Button(root, text="Upload Image", command=self.upload_image)
+        self.upload_button.pack()
+
+        self.camera_button = Button(root, text="Start Camera", command=start_camera)
+        self.camera_button.pack()
+
+        self.image_label = Label(root)
+        self.image_label.pack()
+
+    def upload_image(self):
+        file_path = filedialog.askopenfilename()
+        if file_path:
+            img = preprocess_image(file_path)
+            prediction = model.predict(img)
+            gesture = gesture_mapping[np.argmax(prediction)]
+            self.label.config(text=f"Predicted Gesture: {gesture}")
+
+            # Display Image
+            display_img = Image.open(file_path)
+            display_img.thumbnail((300, 300))
+            img_tk = ImageTk.PhotoImage(display_img)
+            self.image_label.config(image=img_tk)
+            self.image_label.image = img_tk
+
+# Run the App
+if __name__ == "__main__":
+    root = Tk()
+    app = GestureApp(root)
+    root.mainloop()
