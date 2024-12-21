@@ -1,0 +1,76 @@
+import random
+
+# Draw the game board
+def draw(brd):
+    for row in brd:
+        print(" | ".join(row))
+        print("-" * 5)
+
+# Check if there's a winner
+def win(brd, p):
+    for r in brd:
+        if all(c == p for c in r): return True
+    for c in range(3):
+        if all(r[c] == p for r in brd): return True
+    if all(brd[i][i] == p for i in range(3)) or all(brd[i][2-i] == p for i in range(3)): 
+        return True
+    return False
+
+# Get empty spots
+def empty(brd):
+    return [(r, c) for r in range(3) for c in range(3) if brd[r][c] == " "]
+
+# AI move logic
+def ai(brd):
+    for r, c in empty(brd):
+        brd[r][c] = "O"
+        if win(brd, "O"): return
+        brd[r][c] = "X"
+        if win(brd, "X"):
+            brd[r][c] = "O"
+            return
+        brd[r][c] = " "
+    r, c = random.choice(empty(brd))
+    brd[r][c] = "O"
+
+# Main game loop
+def play():
+    brd = [[" " for _ in range(3)] for _ in range(3)]
+    print("Play Tic-Tac-Toe! (You: X, AI: O)")
+
+    while True:
+        draw(brd)
+        # Player's turn
+        while True:
+            try:
+                r, c = map(int, input("Your move (row col): ").split())
+                if brd[r][c] == " ":
+                    brd[r][c] = "X"
+                    break
+                else:
+                    print("Cell taken!")
+            except (ValueError, IndexError):
+                print("Invalid input. Enter row and col (0-2).")
+
+        if win(brd, "X"):
+            draw(brd)
+            print("You win!")
+            break
+        if not empty(brd):
+            draw(brd)
+            print("It's a draw!")
+            break
+
+        # AI's turn
+        ai(brd)
+        if win(brd, "O"):
+            draw(brd)
+            print("AI wins!")
+            break
+        if not empty(brd):
+            draw(brd)
+            print("It's a draw!")
+            break
+
+if __name__ == "__main__":
+    play()
