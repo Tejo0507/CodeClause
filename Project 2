@@ -1,0 +1,80 @@
+import cv2
+import numpy as np
+
+# Load YOLO model
+def load_yolo():
+    model_config = "yolov4.cfg" # Path to YOLO configuration file
+    model_weights = "yolov4.weights" # Path to YOLO pre-trained weights
+    net = cv2.dnn.readNetFromDarknet(model_config, model_weights)
+    net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+    net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+    return net
+
+# Get class labels
+def get_classes():
+    with open("coco.names", "r") as file:
+        labels = file.read().strip().split("\n") # Labels for COCO dataset
+    return labels
+
+# Process detections
+def process_detections(layer_outputs, width, height, conf_threshold=0.5, nms_threshold=0.4):
+    boxes, confidences, class_ids = [], [], []
+    for output in layer_outputs:
+        for detection in output:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if confidence > conf_threshold:
+                box = detection[0:4] * np.array([width, height, width, height])
+                center_x, center_y, w, h = box.astype("int")
+                x = int(center_x - w / 2)
+                y = int(center_y - h / 2)
+                boxes.append([x, y, int(w), int(h)])
+                confidences.append(float(confidence))
+                class_ids.append(class_id)
+    indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
+    return boxes, confidences, class_ids, indices
+
+# Draw boxes on image
+def draw_boxes(image, boxes, confidences, class_ids, indices, labels):
+    for i in indices.flatten():
+        x, y, w, h = boxes[i]
+        label = f"{labels[class_ids[i]]}: {confidences[i]:.2f}"
+        color = np.random.randint(0, 255, size=(3,), dtype="int").tolist()
+        cv2.rectangle(image, (x, y), (x + w, y + h), color, 2)
+        cv2.putText(image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+# Main function
+def detect_objects(video_path=None):
+    yolo_net = load_yolo()
+    labels = get_classes()
+    layer_names = yolo_net.getLayerNames()
+    output_layers = [layer_names[i[0] - 1] for i in yolo_net.getUnconnectedOutLayers()]
+
+    if video_path:
+        cap = cv2.VideoCapture(video_path)
+    else:
+        cap = cv2.VideoCapture(0) # Default camera
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        h, w = frame.shape[:2]
+        blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (416, 416), swapRB=True, crop=False)
+        yolo_net.setInput(blob)
+        layer_outputs = yolo_net.forward(output_layers)
+
+        boxes, confidences, class_ids, indices = process_detections(layer_outputs, w, h)
+        draw_boxes(frame, boxes, confidences, class_ids, indices, labels)
+
+        cv2.imshow("Object Detection", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    detect_objects()
